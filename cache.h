@@ -23,7 +23,7 @@
 #include <QList>
 #include <QMutex>
 
-#include <kurl.h>
+#include <QUrl>
 #include <kio/filejob.h>
 #include <kfileitem.h>
 

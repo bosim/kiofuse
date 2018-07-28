@@ -18,7 +18,7 @@
 
 #include "cache.h"
 
-#include <kdebug.h>
+#include <QDebug>
 
 FileJobData::FileJobData(KIO::FileJob* aFileJob)
     : fileJob(aFileJob),
@@ -46,7 +46,7 @@ Cache::Cache(KFileItem* item)
       m_item(item),
       m_nodeType(regularType)
 {
-    kDebug()<<"Cache ctor(item)"<<endl;
+    qDebug()<<"Cache ctor(item)"<<endl;
 }
 
 Cache::Cache(const QString& rootOfRelPath, NodeType nodeType)
@@ -56,7 +56,7 @@ Cache::Cache(const QString& rootOfRelPath, NodeType nodeType)
       m_item(NULL),
       m_nodeType(nodeType)
 {
-    kDebug()<<"Cache ctor (rootOfRelPath)"<<endl;
+    qDebug()<<"Cache ctor (rootOfRelPath)"<<endl;
     //FIXME item needs to be deleted in the cache as it expires
     KIO::UDSEntry blankEntry = KIO::UDSEntry();
     m_item = new KFileItem(blankEntry, KUrl(rootOfRelPath), true, true);
@@ -64,7 +64,7 @@ Cache::Cache(const QString& rootOfRelPath, NodeType nodeType)
 
 Cache::~Cache()
 {
-    kDebug()<<"Cache dtor: m_item->url().path(KUrl::RemoveTrailingSlash): "<<m_item->url().path(KUrl::RemoveTrailingSlash)<<endl;
+    qDebug()<<"Cache dtor: m_item->url().path(KUrl::RemoveTrailingSlash): "<<m_item->url().path(KUrl::RemoveTrailingSlash)<<endl;
     for (int i = 0; i < children.size(); ++i){
         delete children.at(i);
     }
@@ -87,21 +87,21 @@ void Cache::insert(KFileItem* newItem)
 {
     //sleep(3);
     QString completePath = newItem->url().path(KUrl::RemoveTrailingSlash);
-    kDebug()<<"completePath: "<<completePath<<endl;
+    qDebug()<<"completePath: "<<completePath<<endl;
     QString myPath = m_item->url().path(KUrl::RemoveTrailingSlash);
-    kDebug()<<"myPath: "<<myPath<<endl;
+    qDebug()<<"myPath: "<<myPath<<endl;
     int relPathLength = completePath.length() - myPath.length();
 
     if (relPathLength == 0){
         //Replace previous item (which may be a stub) with a real item
-        kDebug()<<"Replacing: myPath: "<<myPath<<endl;
+        qDebug()<<"Replacing: myPath: "<<myPath<<endl;
         setItem(newItem);
         return;
     }
 
     QString relPath = completePath.right(relPathLength);
     relPath = stripBegSlashes(relPath);
-    kDebug()<<"relPath"<<relPath<<endl;
+    qDebug()<<"relPath"<<relPath<<endl;
     int endOfRootOfRelPath = relPath.indexOf("/");
 
     if (endOfRootOfRelPath < 0){
@@ -109,11 +109,11 @@ void Cache::insert(KFileItem* newItem)
         int i = findIdxOfChildFromFileName(newItem->url().fileName(KUrl::IgnoreTrailingSlash));
         if (i != -1){
             // A child by this name already exists; replace its old item with the new item
-            kDebug()<<"Replacing item of child"<<newItem->url().fileName(KUrl::IgnoreTrailingSlash)<<endl;
+            qDebug()<<"Replacing item of child"<<newItem->url().fileName(KUrl::IgnoreTrailingSlash)<<endl;
             children.at(i)->insert(newItem);         //Same as children.at(i)->setItem(newItem);
         } else {
             // Create a new child that contains newItem
-            kDebug()<<"Creating new child"<<newItem->url().fileName(KUrl::IgnoreTrailingSlash)<<endl;
+            qDebug()<<"Creating new child"<<newItem->url().fileName(KUrl::IgnoreTrailingSlash)<<endl;
             Cache* newChild = new Cache(newItem);
             children.append(newChild);
         }
@@ -122,14 +122,14 @@ void Cache::insert(KFileItem* newItem)
     
     QString rootOfRelPath = relPath.left(endOfRootOfRelPath);
 
-    kDebug()<<"rootOfRelPath"<<rootOfRelPath<<endl;
+    qDebug()<<"rootOfRelPath"<<rootOfRelPath<<endl;
 
     int i = findIdxOfChildFromFileName(rootOfRelPath);
     if (i != -1){
-        kDebug()<<"Inserting"<<endl;
+        qDebug()<<"Inserting"<<endl;
         children.at(i)->insert(newItem);
     } else {
-        kDebug()<<"Creating inner stub"<<endl;
+        qDebug()<<"Creating inner stub"<<endl;
 
         Cache* innerStub;
         if (myPath == "/"){       // Treat root dir differently since it is not affected by RemoveTrailingSlash
@@ -150,13 +150,13 @@ bool Cache::setExtraData(const KUrl& url, const uint64_t& key,
 {
     //sleep(3);
     QString completePath = url.path(KUrl::RemoveTrailingSlash);
-    kDebug()<<"completePath: "<<completePath<<endl;
+    qDebug()<<"completePath: "<<completePath<<endl;
     QString myPath = m_item->url().path(KUrl::RemoveTrailingSlash);
-    kDebug()<<"myPath: "<<myPath<<endl;
+    qDebug()<<"myPath: "<<myPath<<endl;
     int relPathLength = completePath.length() - myPath.length();
 
     if (relPathLength == 0){
-        kDebug()<<"setting extra data"<<myPath<<endl;
+        qDebug()<<"setting extra data"<<myPath<<endl;
         // Add the opened file handle to m_item
         this->fhIdtoFileJob[key] = new FileJobData(fileJob);
 
@@ -166,7 +166,7 @@ bool Cache::setExtraData(const KUrl& url, const uint64_t& key,
 
     QString relPath = completePath.right(relPathLength);
     relPath = stripBegSlashes(relPath);
-    kDebug()<<"relPath"<<relPath<<endl;
+    qDebug()<<"relPath"<<relPath<<endl;
     int endOfRootOfRelPath = relPath.indexOf("/");
 
     if (endOfRootOfRelPath < 0){
@@ -174,11 +174,11 @@ bool Cache::setExtraData(const KUrl& url, const uint64_t& key,
         int i = findIdxOfChildFromFileName(url.fileName(KUrl::IgnoreTrailingSlash));
         if (i != -1){
             // A child by this name already exists; find the item and add the extra data
-            kDebug()<<"Adding extra data to child"<<url.fileName(KUrl::IgnoreTrailingSlash)<<endl;
+            qDebug()<<"Adding extra data to child"<<url.fileName(KUrl::IgnoreTrailingSlash)<<endl;
             return children.at(i)->setExtraData(url, key, fileJob);   // Aka return false
         } else {
             // Create a new leaf stub that contains the extra data
-            kDebug()<<"Creating new leaf stub"<<url.fileName(KUrl::IgnoreTrailingSlash)<<endl;
+            qDebug()<<"Creating new leaf stub"<<url.fileName(KUrl::IgnoreTrailingSlash)<<endl;
             Cache* newChild = new Cache(url.path(), leafStubType);
             
             // Ignore return value (false) because we created a leaf stub
@@ -190,14 +190,14 @@ bool Cache::setExtraData(const KUrl& url, const uint64_t& key,
 
     QString rootOfRelPath = relPath.left(endOfRootOfRelPath);
 
-    kDebug()<<"rootOfRelPath"<<rootOfRelPath<<endl;
+    qDebug()<<"rootOfRelPath"<<rootOfRelPath<<endl;
 
     int i = findIdxOfChildFromFileName(rootOfRelPath);
     if (i != -1){
-        kDebug()<<"Setting"<<endl;
+        qDebug()<<"Setting"<<endl;
         children.at(i)->setExtraData(url, key, fileJob);
     } else {
-        kDebug()<<"Creating inner stub"<<endl;
+        qDebug()<<"Creating inner stub"<<endl;
 
         Cache* innerStub;
         if (myPath == "/"){       // Treat root dir differently since it is not affected by RemoveTrailingSlash
@@ -226,20 +226,20 @@ Cache* Cache::find(const KUrl &url)
 {
     //sleep(3);
     QString completePath = url.path(KUrl::RemoveTrailingSlash);
-    kDebug()<<"completePath: "<<completePath<<endl;
+    qDebug()<<"completePath: "<<completePath<<endl;
     QString myPath = m_item->url().path(KUrl::RemoveTrailingSlash);
-    kDebug()<<"myPath: "<<myPath<<endl;
+    qDebug()<<"myPath: "<<myPath<<endl;
     int relPathLength = completePath.length() - myPath.length();
 
     if (relPathLength == 0){
         // We found the item with the needed URL
-        kDebug()<<"Found item"<<myPath<<endl;
+        qDebug()<<"Found item"<<myPath<<endl;
         return this;
     }
 
     QString relPath = completePath.right(relPathLength);
     relPath = stripBegSlashes(relPath);
-    kDebug()<<"relPath"<<relPath<<endl;
+    qDebug()<<"relPath"<<relPath<<endl;
     int endOfRootOfRelPath = relPath.indexOf("/");
 
     if (endOfRootOfRelPath < 0){
@@ -248,21 +248,21 @@ Cache* Cache::find(const KUrl &url)
         if (i != -1){
             return children.at(i)->find(url);   // Found the right child
         } else {
-            kDebug()<<"Child not found"<<myPath<<endl;
+            qDebug()<<"Child not found"<<myPath<<endl;
             return NULL;  // Child not found
         }
     }
 
     QString rootOfRelPath = relPath.left(endOfRootOfRelPath);
 
-    kDebug()<<"rootOfRelPath"<<rootOfRelPath<<endl;
+    qDebug()<<"rootOfRelPath"<<rootOfRelPath<<endl;
 
     int i = findIdxOfChildFromFileName(rootOfRelPath);
     if (i != -1){
-        kDebug()<<"Finding"<<endl;
+        qDebug()<<"Finding"<<endl;
         return children.at(i)->find(url);
     } else {
-        kDebug()<<"Branch doesn't exist"<<myPath<<endl;
+        qDebug()<<"Branch doesn't exist"<<myPath<<endl;
         return NULL;  // Branch doesn't exist
     }
 }
@@ -278,7 +278,7 @@ bool Cache::releaseJob(const uint64_t& fileHandleId)
         delete fileJobData;
         fileJobData = NULL;
 
-        kDebug()<<"Deleted job"<<endl;
+        qDebug()<<"Deleted job"<<endl;
         return true;
     } else {
         return false;

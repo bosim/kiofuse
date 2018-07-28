@@ -27,31 +27,34 @@
 #include <QDir>
 
 #include <KAboutData>
-#include <KCmdLineArgs>
-#include <kdebug.h>
-
+#include <QCommandLineParser>
+#include <QDebug>
+#include <KLocalizedString>
 
 // This pointer to the fuse thread is used by main() and exitHandler()
 FuseThread* fuseThread = NULL;
 
 
+#if 0
 static const KAboutData aboutData("kiofuse",
                         NULL,
-                        ki18n("KioFuse"),
+                        ki18n("KioFuse").toString(),
                         "0.1",
-                        ki18n("Expose KIO filesystems to all POSIX-compliant applications"),
-                        KAboutData::License_GPL_V3,
+                        ki18n("Expose KIO filesystems to all POSIX-compliant applications").toString,
+//                        KAboutData::License_GPL_V3, 
+			KAboutLicense::LGPL,
                         ki18n("(c) 2007-2015 The KioFuse Authors"),
-                        KLocalizedString(),
+                        QString(),
                         "https://techbase.kde.org/Projects/KioFuse",
                         "submit@bugs.kde.org");
-
+#endif
 
 static void exitHandler(int)
 {
+    qDebug() << "Exit handler called!";
     if (fuseThread != NULL)
     {
-        //kdDebug()<<"exit";
+        qDebug()<<"exit";
         fuseThread->unmount();
         //kdDebug()<<"Quitting kioFuseApp";
         exit(0);
@@ -74,7 +77,7 @@ static void set_signal_handlers()
         || sigaction(SIGQUIT, &sa, NULL) == -1
         || sigaction(SIGTERM, &sa, NULL) == -1)
     {
-        kdDebug()<<"Cannot set exit signal handlers.";
+        qDebug()<<"Cannot set exit signal handlers.";
         exit(1);
     }
 
@@ -82,7 +85,7 @@ static void set_signal_handlers()
 
     if (sigaction(SIGPIPE, &sa, NULL) == -1)
     {
-        kdDebug()<<"Cannot set ignored signals.";
+        qDebug()<<"Cannot set ignored signals.";
         exit(1);
     }
 }
@@ -90,27 +93,28 @@ static void set_signal_handlers()
 
 // Initializes mountPoint and baseUrl as specified on the command line
 // Returns false if needed argument is not found
-bool prepareArguments(KCmdLineArgs *args, KUrl &mountPoint, KUrl &baseUrl)
+bool prepareArguments(QCommandLineParser const& args, QUrl &mountPoint, QUrl &baseUrl)
 {
-    if (args->isSet("mountpoint")){
+    if (args.isSet("mountpoint")){
+        qDebug() << args.value("mountpoint") << endl;
         if (QDir(mountPoint.path()).exists()){
-            mountPoint = KUrl(args->getOption("mountpoint"));
+            mountPoint = QUrl(args.value("mountpoint"));
         }
         else{
-            kDebug() <<"The specified mountpoint is not valid"<<endl;
+            qDebug() <<"The specified mountpoint is not valid"<<endl;
             return false;
         }
     }
     else{
-        kDebug() <<"Please specify the mountpoint"<<endl;
+        qDebug() <<"Please specify the mountpoint"<<endl;
         return false;
     }
 
-    if (args->isSet("URL")){
-        baseUrl = KUrl(args->getOption("URL"));
+    if (args.isSet("URL")){
+        baseUrl = QUrl(args.value("URL"));
     }
     else{
-        kDebug() <<"Please specify the URL of the remote resource"<<endl;
+        qDebug() <<"Please specify the URL of the remote resource"<<endl;
         return false;
     }
 
@@ -120,23 +124,34 @@ bool prepareArguments(KCmdLineArgs *args, KUrl &mountPoint, KUrl &baseUrl)
 
 int main (int argc, char *argv[])
 {
-    // KDE initialization
-    KCmdLineArgs::init(argc, argv, &aboutData);
-    KCmdLineOptions options;
-    options.add("mountpoint <argument>", ki18n("Where to place the remote files within the root hierarchy"));
-    options.add("URL <argument>", ki18n("The URL of the remote resource"));
-    KCmdLineArgs::addCmdLineOptions(options);
-    KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
+    // Holds persistent info (ie. the FS cache)
+    kioFuseApp = new KioFuseApp(argc, argv);
+    qDebug()<<"kioFuseApp->thread()"<<kioFuseApp->thread()<<endl;
 
-    KUrl mountPoint;  // Local path where files will appear
-    KUrl baseUrl;  // Remote location of the resource
+    // Enable QMetaObject::invokeMethod to work with unusual types like off_t
+    kioFuseApp->setUpTypes();
+
+    // KDE initialization
+    QCommandLineParser parser;
+    parser.addHelpOption();
+    parser.addVersionOption();
+    parser.addOption(QCommandLineOption("mountpoint", ki18n("Where to place the remote files within the root hierarchy").toString(), "mountpoint"));
+    parser.addOption(QCommandLineOption("URL", ki18n("The URL of the remote resource").toString(), "URL"));
+
+    QUrl mountPoint;  // Local path where files will appear
+    QUrl baseUrl;  // Remote location of the resource
+    qDebug() << kioFuseApp->arguments().size() << endl;
+    parser.process(kioFuseApp->arguments());
 
     // Initialize mountPoint and baseUrl as specified on the commandline
-    if (!prepareArguments(args, mountPoint, baseUrl)){
+    if (!prepareArguments(parser, mountPoint, baseUrl)){
         // Quit program if a needed argument is not provided by the user
         exit(1);
     }
 
+    kioFuseApp->setBaseUrl(baseUrl);
+    kioFuseApp->setMountPoint(mountPoint);
+    
     // FUSE variables
     struct fuse_operations ops;
     struct fuse_args fuseArguments = FUSE_ARGS_INIT(0, NULL);
@@ -144,9 +159,10 @@ int main (int argc, char *argv[])
     struct fuse *fuseHandle = NULL;
 
     // Tell FUSE where the local mountpoint is
+    qDebug() << "mount point" << mountPoint.path().toLatin1() << endl;
     fuseChannel = fuse_mount(mountPoint.path().toLatin1(), &fuseArguments);
     if (fuseChannel == NULL){
-        kDebug()<<"fuse_mount() failed"<<endl;
+        qDebug()<<"fuse_mount() failed"<<endl;
         exit(1);
     }
 
@@ -188,16 +204,9 @@ int main (int argc, char *argv[])
     // Tell FUSE about the KioFuse implementations of FS operations
     fuseHandle = fuse_new(fuseChannel, &fuseArguments, &ops, sizeof(ops), NULL);
     if (fuseHandle == NULL){
-        kDebug()<<"fuse_new() failed"<<endl;
+        qDebug()<<"fuse_new() failed"<<endl;
         exit(1);
     }
-
-    // Holds persistent info (ie. the FS cache)
-    kioFuseApp = new KioFuseApp(baseUrl, mountPoint);
-    kDebug()<<"kioFuseApp->thread()"<<kioFuseApp->thread()<<endl;
-
-    // Enable QMetaObject::invokeMethod to work with unusual types like off_t
-    kioFuseApp->setUpTypes();
 
     // Translate between KIO::Error and errno.h
     //kioFuseApp->setUpErrorTranslator();
@@ -210,7 +219,8 @@ int main (int argc, char *argv[])
 
     // An event loop needs to run in the main thread so that
     // we can connect to slots in the main thread using Qt::QueuedConnection
-    kioFuseApp->exec();
+    while(true)
+        qDebug() << "exec exit" << kioFuseApp->exec();
 
     // kioFuseApp has quit its event loop.
     // Execution will never reach here because exitHandler calls exit(0),

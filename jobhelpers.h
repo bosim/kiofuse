@@ -34,12 +34,12 @@ class ListJobHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        ListJobHelper(const KUrl& url, QEventLoop* eventLoop);
+        ListJobHelper(const QUrl& url, QEventLoop* eventLoop);
         ~ListJobHelper();
         KIO::UDSEntryList entries();  // Sends file and directory info to the FUSE op that started the job
 /*    
     signals:
-        void reqListJob(const KUrl&, ListJobHelper*);
+        void reqListJob(const QUrl&, ListJobHelper*);
 */
     public slots:
         void receiveEntries(KIO::Job*, const KIO::UDSEntryList &entries);  // Store entries so that the FUSE op can get them
@@ -53,12 +53,12 @@ class StatJobHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        StatJobHelper(const KUrl& url, QEventLoop* eventLoop);
+        StatJobHelper(const QUrl& url, QEventLoop* eventLoop);
         ~StatJobHelper();
         KIO::UDSEntry entry();  // Sends file and directory info to the FUSE op that started the job
 /*    
     signals:
-        void reqStatJob(const KUrl&, StatJobHelper*);
+        void reqStatJob(const QUrl&, StatJobHelper*);
 */
     public slots:
         void receiveEntry(const KIO::UDSEntry &entry);  // Store entry so that the FUSE op can get it
@@ -72,7 +72,7 @@ class OpenJobHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        OpenJobHelper(const KUrl& url, const QIODevice::OpenMode& qtMode,
+        OpenJobHelper(const QUrl& url, const QIODevice::OpenMode& qtMode,
                       QEventLoop* eventLoop);
         ~OpenJobHelper();
         uint64_t fileHandleId() {return m_fileHandleId;}
@@ -82,7 +82,7 @@ class OpenJobHelper : public BaseJobHelper
         void setFileHandleId(const uint64_t& aFileHandleId);
 /*
     signals:
-        void reqFileJob(const KUrl&, const QIODevice::OpenMode&, OpenJobHelper*);
+        void reqFileJob(const QUrl&, const QIODevice::OpenMode&, OpenJobHelper*);
 */
     protected:
         uint64_t m_fileHandleId;
@@ -114,7 +114,7 @@ class ReadJobHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        ReadJobHelper(const uint64_t& fileHandleId, const KUrl& url, const size_t& size,
+        ReadJobHelper(const uint64_t& fileHandleId, const QUrl& url, const size_t& size,
                       const off_t& offset, QEventLoop* eventLoop);
         ~ReadJobHelper();
         QByteArray data() {return m_data;}  // Sends data to the FUSE op
@@ -142,7 +142,7 @@ class WriteJobHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        WriteJobHelper(const uint64_t& fileHandleId, const KUrl& url, const QByteArray& data,
+        WriteJobHelper(const uint64_t& fileHandleId, const QUrl& url, const QByteArray& data,
                        const off_t& offset, QEventLoop* eventLoop);
         ~WriteJobHelper();
         size_t written() {return m_written;}  // Sends number of
@@ -171,11 +171,11 @@ class MkDirHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        MkDirHelper(const KUrl& url, const mode_t& mode, QEventLoop* eventLoop);
+        MkDirHelper(const QUrl& url, const mode_t& mode, QEventLoop* eventLoop);
         ~MkDirHelper();
 /*    
     signals:
-        void reqMkDir(const KUrl&, const mode_t&, MkDirHelper*);
+        void reqMkDir(const QUrl&, const mode_t&, MkDirHelper*);
 */
 };
 
@@ -184,11 +184,11 @@ class UnLinkHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        UnLinkHelper(const KUrl& url, QEventLoop* eventLoop);
+        UnLinkHelper(const QUrl& url, QEventLoop* eventLoop);
         ~UnLinkHelper();
 /*    
     signals:
-        void reqUnLink(const KUrl&, UnLinkHelper*);
+        void reqUnLink(const QUrl&, UnLinkHelper*);
 */
 };
 
@@ -197,11 +197,11 @@ class MkNodHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        MkNodHelper(const KUrl& url, const mode_t& mode, QEventLoop* eventLoop);
+        MkNodHelper(const QUrl& url, const mode_t& mode, QEventLoop* eventLoop);
         ~MkNodHelper();
 /*    
     signals:
-        void reqMkNod(const KUrl&, const mode_t&, MkNodHelper*);
+        void reqMkNod(const QUrl&, const mode_t&, MkNodHelper*);
 */
 };
 
@@ -210,11 +210,11 @@ class SymLinkHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        SymLinkHelper(const KUrl& source, const KUrl& dest, QEventLoop* eventLoop);
+        SymLinkHelper(const QUrl& source, const QUrl& dest, QEventLoop* eventLoop);
         ~SymLinkHelper();
 /*    
     signals:
-        void reqSymLink(const KUrl&, const KUrl&, SymLinkHelper*);
+        void reqSymLink(const QUrl&, const QUrl&, SymLinkHelper*);
 */
 };
 
@@ -223,11 +223,11 @@ class ReNameHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        ReNameHelper(const KUrl& source, const KUrl& dest, QEventLoop* eventLoop);
+        ReNameHelper(const QUrl& source, const QUrl& dest, QEventLoop* eventLoop);
         ~ReNameHelper();
 /*    
     signals:
-        void reqReName(const KUrl&, const KUrl&, ReNameHelper*);
+        void reqReName(const QUrl&, const QUrl&, ReNameHelper*);
 */
 };
 
@@ -236,11 +236,11 @@ class ChModHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        ChModHelper(const KUrl& url, const mode_t& mode, QEventLoop* eventLoop);
+        ChModHelper(const QUrl& url, const mode_t& mode, QEventLoop* eventLoop);
         ~ChModHelper();
 /*    
     signals:
-        void reqChMod(const KUrl&, const mode_t&, ChModHelper*);
+        void reqChMod(const QUrl&, const mode_t&, ChModHelper*);
 */
 };
 
@@ -249,12 +249,12 @@ class ReleaseJobHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        ReleaseJobHelper(const KUrl& url, const uint64_t& fileHandleId,
+        ReleaseJobHelper(const QUrl& url, const uint64_t& fileHandleId,
                          const bool& jobIsAnnulled, QEventLoop* eventLoop);
         ~ReleaseJobHelper();
 /*    
     signals:
-        void reqReleaseJob(const KUrl&, const uint64_t&, ReleaseJobHelper*);
+        void reqReleaseJob(const QUrl&, const uint64_t&, ReleaseJobHelper*);
 */
 };
 
@@ -263,11 +263,11 @@ class ChTimeHelper : public BaseJobHelper
     Q_OBJECT
 
     public:
-        ChTimeHelper(const KUrl& url, const QDateTime& dt, QEventLoop* eventLoop);
+        ChTimeHelper(const QUrl& url, const QDateTime& dt, QEventLoop* eventLoop);
         ~ChTimeHelper();
 /*    
     signals:
-        void reqChTime(const KUrl&, const QDateTime&, ChTimeHelper*);
+        void reqChTime(const QUrl&, const QDateTime&, ChTimeHelper*);
 */
 };
 

@@ -25,8 +25,7 @@ extern "C" {
 }
 
 #include <QThread>
-
-#include <kurl.h>
+#include <QUrl>
 
 class FuseThread : public QThread
 {
@@ -34,7 +33,7 @@ class FuseThread : public QThread
 
     public:
         FuseThread(QObject *parent, struct fuse *fuseHandle,
-                   struct fuse_chan *fuseChannel, KUrl mountPoint);
+                   struct fuse_chan *fuseChannel, QUrl mountPoint);
         void unmount();
         ~FuseThread();
 
@@ -44,7 +43,7 @@ class FuseThread : public QThread
     private:
         struct fuse *m_fuseHandle;
         struct fuse_chan *m_fuseChannel;
-        KUrl m_mountPoint;
+        QUrl m_mountPoint;
         //bool m_alreadyUnmounted;
 };
 

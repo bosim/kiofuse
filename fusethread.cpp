@@ -23,28 +23,28 @@
 
 #include <QString>
 
-#include <KDebug>
+#include <QDebug>
 
 FuseThread::FuseThread(QObject *parent, struct fuse *fuseHandle,
-                       struct fuse_chan *fuseChannel, KUrl mountPoint)
+                       struct fuse_chan *fuseChannel, QUrl mountPoint)
     : QThread(parent),
       m_fuseHandle(fuseHandle),
       m_fuseChannel(fuseChannel),
       m_mountPoint(mountPoint)
       //m_alreadyUnmounted(false)
 {
-    kDebug()<<"QThread::currentThread()"<<QThread::currentThread()<<endl;
+    qDebug()<<"QThread::currentThread()"<<QThread::currentThread()<<endl;
 }
 
 void FuseThread::run()
 {
-    kDebug()<<"QThread::currentThread()"<<QThread::currentThread()<<endl;
+    qDebug()<<"QThread::currentThread()"<<QThread::currentThread()<<endl;
 
     // Give FUSE the control. It will call functions in ops as they are requested by users of the FS.
     // Since fuse_loop_mt() is used instead of fuse_loop(), every call to the ops will be made in a new thread
     fuse_loop_mt(m_fuseHandle);
     //fuse_loop(m_fuseHandle);
-
+    qDebug() << "FUSE loop has stopped!" << endl;
     // FUSE has quit its event loop
 
     // Takes us to exitHandler()

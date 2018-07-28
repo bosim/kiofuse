@@ -19,20 +19,20 @@
 
 #include "basejobhelper.h"
 
-#include <kdebug.h>
+#include <QDebug>
 
-BaseJobHelper::BaseJobHelper(QEventLoop* eventLoop, const KUrl& url)
+BaseJobHelper::BaseJobHelper(QEventLoop* eventLoop, const QUrl& url)
     : QObject(),
       m_error(0),  // Error code returned by the job
       m_url(url),  // The remote url
       m_eventLoop(eventLoop)  // The event loop that will return execution to the FUSE op once the job finished
 {
-    kDebug()<<"BaseJobHelper ctor"<<endl;
+    qDebug()<<"BaseJobHelper ctor"<<endl;
 }
 
 void BaseJobHelper::jobDone(const int& error)
 {
-    kDebug()<<"jobDone"<<endl;
+    qDebug()<<"jobDone error: " << error <<endl;
     m_error = error;
 
     m_eventLoop->exit();  // Return execution to the FUSE op that called us
@@ -40,11 +40,11 @@ void BaseJobHelper::jobDone(const int& error)
 
 BaseJobHelper::~BaseJobHelper()
 {
-    kDebug()<<"BaseJobHelper dtor"<<endl;
+    qDebug()<<"BaseJobHelper dtor"<<endl;
 
     if (!m_eventLoop->isRunning())
     {
-        m_eventLoop->exit();
-        m_eventLoop = NULL;
+      m_eventLoop->exit();
+      m_eventLoop = NULL;
     }
 }

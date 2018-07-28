@@ -28,9 +28,9 @@ extern "C" {
 #include "cache.h"
 #include "jobhelpers.h"
 
-#include <KApplication>
-#include <ktemporaryfile.h>
-
+#include <QApplication>
+#include <QTemporaryFile>
+#include <QMutex>
 
 #define VERIFY(expression) if(expression) {} else { kioFuseApp->quitGracefully(#expression, __FILE__, __LINE__, __FUNCTION__); }
 
@@ -51,23 +51,24 @@ class UnLinkHelper;
 class ChTimeHelper;
 class LockHelper;
 
-class KioFuseApp : public KApplication
-{
+class KioFuseApp : public QCoreApplication {
     Q_OBJECT
 
     public:
-        KioFuseApp(const KUrl &url, const KUrl &mountPoint);
+        KioFuseApp(int &argc, char* argv[]);
         ~KioFuseApp();
-        const KUrl& baseUrl();  // Getter method for the remote base URL
-        const KUrl& mountPoint();  // Getter method for the mountpoint URL
-        KUrl buildRemoteUrl(const QString& path);  // Create a full URL containing both the remote base and the relative path
-        KUrl buildLocalUrl(const QString& path);  // Create a full URL containing both the local mountpoint and the relative path
+	void setBaseUrl(QUrl& url) { m_baseUrl = url; }
+	void setMountPoint(QUrl& url) { m_mountPoint = url; }
+        const QUrl& baseUrl();  // Getter method for the remote base URL
+        const QUrl& mountPoint();  // Getter method for the mountpoint URL
+        QUrl buildRemoteUrl(const QString& path);  // Create a full URL containing both the remote base and the relative path
+        QUrl buildLocalUrl(const QString& path);  // Create a full URL containing both the local mountpoint and the relative path
         void storeOpenHandle(KIO::FileJob* fileJob, OpenJobHelper* openJobHelper);
         //void lockJob(const uint64_t& fileHandleId);
         //void unLockJob(const uint64_t& fileHandleId);
-        KIO::FileJob* checkOutJob(/*const KUrl& url,*/ const uint64_t& fileHandleId);  // Find the job using its ID, 
+        KIO::FileJob* checkOutJob(/*const QUrl& url,*/ const uint64_t& fileHandleId);  // Find the job using its ID, 
                                                                                    // and prevent other threads from using it.
-       // void checkInJob(const KUrl& url, const uint64_t& fileHandleId);  // Allow other threads to use the
+       // void checkInJob(const QUrl& url, const uint64_t& fileHandleId);  // Allow other threads to use the
                                                                          // FileJob specified by this fileHandleId.
         void removeJob(const uint64_t& fileHandleId, FileJobData* fileJobData,
                        const bool& jobIsAnnulled);
@@ -77,17 +78,18 @@ class KioFuseApp : public KApplication
         void addAnnulledFh(const uint64_t& fh);
         void removeAnnulledFh(const uint64_t& fh);
         bool isAnnulled(const uint64_t& fh);
+	
         void quitGracefully(const char* expression, const char* file,
                             const int& line, const char* function);
 
         QMutex fhIdtoFileJobDataMutex;
 
     public slots:
-        void listJobMainThread(const KUrl& url, ListJobHelper* listJobHelper);
+        void listJobMainThread(const QUrl& url, ListJobHelper* listJobHelper);
         void slotResult(KJob* job);
-        void statJobMainThread(const KUrl& url, StatJobHelper* statJobHelper);
+        void statJobMainThread(const QUrl& url, StatJobHelper* statJobHelper);
         void slotStatJobResult(KJob* job);
-        void openJobMainThread(const KUrl& url, const QIODevice::OpenMode& qtMode, OpenJobHelper* openJobHelper);
+        void openJobMainThread(const QUrl& url, const QIODevice::OpenMode& qtMode, OpenJobHelper* openJobHelper);
         void fileJobOpened(KIO::Job* job);
         //void jobErrorOpen(KJob* job);
         void jobErrorReadWrite(KJob* job);
@@ -101,20 +103,20 @@ class KioFuseApp : public KApplication
         void slotWritePosition(KIO::Job* job, KIO::filesize_t pos);
         void writeMainThread(KIO::FileJob* fileJob, const QByteArray& data, WriteJobHelper* writeJobHelper);
         void slotWritten(KIO::Job* job, const KIO::filesize_t& written);
-        void mkDirMainThread(const KUrl& url, const mode_t& mode, MkDirHelper* mkDirHelper);
-        void mkNodMainThread(const KUrl& url, const mode_t& mode, MkNodHelper* mkNodHelper);
+        void mkDirMainThread(const QUrl& url, const mode_t& mode, MkDirHelper* mkDirHelper);
+        void mkNodMainThread(const QUrl& url, const mode_t& mode, MkNodHelper* mkNodHelper);
         void slotMkNodResult(KJob* job);
-        void chModMainThread(const KUrl& url, const mode_t& mode,
+        void chModMainThread(const QUrl& url, const mode_t& mode,
                              ChModHelper* chModHelper);
-        void symLinkMainThread(const KUrl& source, const KUrl& dest,
+        void symLinkMainThread(const QUrl& source, const QUrl& dest,
                                SymLinkHelper* symLinkHelper);
-        void reNameMainThread(const KUrl& source, const KUrl& dest,
+        void reNameMainThread(const QUrl& source, const QUrl& dest,
                               ReNameHelper* reNameHelper);
-        void unLinkMainThread(const KUrl& url, UnLinkHelper* unLinkHelper);
-        void releaseJobMainThread(/*const KUrl& url,*/ const uint64_t& fileHandleId,
+        void unLinkMainThread(const QUrl& url, UnLinkHelper* unLinkHelper);
+        void releaseJobMainThread(/*const QUrl& url,*/ const uint64_t& fileHandleId,
                                   const bool& jobIsAnnulled,
                                   ReleaseJobHelper* releaseJobHelper);
-        void chTimeMainThread(const KUrl& url, const QDateTime& dt,
+        void chTimeMainThread(const QUrl& url, const QDateTime& dt,
                               ChTimeHelper* chTimeHelper);
 /*
 
@@ -128,8 +130,8 @@ class KioFuseApp : public KApplication
         void sendWritten(const size_t&, const int&);
 */
     private:
-        KUrl m_baseUrl;  // Remote base URL
-        KUrl m_mountPoint; // Local mountpoint
+        QUrl m_baseUrl;  // Remote base URL
+        QUrl m_mountPoint; // Local mountpoint
         QMutex m_baseUrlMutex;  // Allows only one thread to access the remote
                                 // base URL at a time.
         QMutex m_mountPointMutex;  // Allows only one thread to access the
@@ -145,7 +147,7 @@ class KioFuseApp : public KApplication
         //QMutex m_cacheMutex;  // Allows only one thread to access the cache at a time
 
         QMap<KJob *, BaseJobHelper *> m_jobToJobHelper;  // Correlate listJob with the ListJobHelper that needs it
-        QMap<KJob *, KTemporaryFile *> m_jobToTempFile;  // Correlate FileCopyJob with the MkNodHelper that needs it
+        QMap<KJob *, QTemporaryFile *> m_jobToTempFile;  // Correlate FileCopyJob with the MkNodHelper that needs it
         QMap<uint64_t, FileJobData*> fhIdtoFileJobData;  // Correlate opened file
                                                      // handles with the FileJob
         //QMap<int, int> KIOErrToSysError;  // Translates between KIO:Error and

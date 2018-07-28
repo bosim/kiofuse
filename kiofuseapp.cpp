@@ -24,18 +24,15 @@
 //#include <QThread>
 //#include <QMutexLocker>
 
-#include <kdebug.h>
-#include <kio/netaccess.h>
-#include <kio/deletejob.h>
+#include <QDebug>
+#include <KIO/DeleteJob>
 
 KioFuseApp *kioFuseApp = NULL;
 //const unsigned int MAX_TIME_OPENED = 8*3600*1000 /*4000*/;  // Time out for opened files in ms
 
-KioFuseApp::KioFuseApp(const KUrl &url, const KUrl &mountPoint)
-    : KApplication(false),  //No GUI
+KioFuseApp::KioFuseApp(int &argc, char* argv[])
+    : QCoreApplication(argc, argv),  //No GUI
       fhIdtoFileJobDataMutex(QMutex::Recursive),
-      m_baseUrl(url),
-      m_mountPoint(mountPoint),
       m_baseUrlMutex(QMutex::Recursive),
       m_mountPointMutex(QMutex::Recursive),
       m_terminatedFhListMutex(QMutex::Recursive)
@@ -46,17 +43,13 @@ KioFuseApp::KioFuseApp(const KUrl &url, const KUrl &mountPoint)
       //m_cacheMutex(QMutex::Recursive)  // Allow the mutex to be locked several times within the same thread
 {
     //QMutexLocker locker(&m_cacheMutex);
-    kDebug()<<"KioFuseApp ctor baseUrl: "<<m_baseUrl.prettyUrl()<<endl;
-
-    //QString root = QString("/");  // Create the cache root, which represents the root directory (/)
-    //m_cacheRoot = new Cache(root, Cache::innerStubType);  // All files and folders will be children of this node
 }
 
 KioFuseApp::~KioFuseApp()
 {
     //QMutexLocker locker(&m_cacheMutex);
 
-    kDebug()<<"KioFuseApp dtor"<<endl;
+    qDebug()<<"KioFuseApp dtor"<<endl;
     foreach (FileJobData* fileJobData, fhIdtoFileJobData){
         // FileJobData dtor will close the FileJob
         delete fileJobData;
@@ -65,36 +58,36 @@ KioFuseApp::~KioFuseApp()
     //m_cacheRoot = NULL;
 }
 
-const KUrl& KioFuseApp::baseUrl()  // Getter method for the remote base URL
+const QUrl& KioFuseApp::baseUrl()  // Getter method for the remote base URL
 {
     QMutexLocker locker(&m_baseUrlMutex);
     return m_baseUrl;
 }
 
-const KUrl& KioFuseApp::mountPoint()  // Getter method for the remote base URL
+const QUrl& KioFuseApp::mountPoint()  // Getter method for the remote base URL
 {
     QMutexLocker locker(&m_mountPointMutex);
     return m_mountPoint;
 }
 
-KUrl KioFuseApp::buildRemoteUrl(const QString& path)  // Create a full URL containing both the remote base and the relative path
+QUrl KioFuseApp::buildRemoteUrl(const QString& path)  // Create a full URL containing both the remote base and the relative path
 {
     QMutexLocker locker(&m_baseUrlMutex);
-    KUrl url = baseUrl();
+    QUrl url = baseUrl();
     /*if (path == "/"){
         // Don't need to append only a "/"
         // Allows files to be baseUrls
         return url;
     }*/
-    url.addPath(path);
+    url.setPath(path);
     return url;
 }
 
-KUrl KioFuseApp::buildLocalUrl(const QString& path)  // Create a full URL containing both the remote base and the relative path
+QUrl KioFuseApp::buildLocalUrl(const QString& path)  // Create a full URL containing both the remote base and the relative path
 {
     QMutexLocker locker(&m_mountPointMutex);
-    KUrl url = mountPoint();
-    url.addPath(path);
+    QUrl url = mountPoint();
+    url.setPath(path);
     return url;
 }
 
@@ -119,7 +112,7 @@ void KioFuseApp::storeOpenHandle(KIO::FileJob* fileJob, OpenJobHelper* openJobHe
 
     //Don't need an assert here because we're out of the while loop
     fhIdtoFileJobData.insertMulti(fileHandleId, fileJobData);
-    kDebug()<<"fileHandleId"<<fileHandleId<<"fileJob"<<fileJob<<"&(fileJobData->jobMutex)"<<&(fileJobData->jobMutex)<<endl;
+    qDebug()<<"fileHandleId"<<fileHandleId<<"fileJob"<<fileJob<<"&(fileJobData->jobMutex)"<<&(fileJobData->jobMutex)<<endl;
 
     //qRegisterMetaType<uint64_t>("uint64_t");
     VERIFY(QMetaObject::invokeMethod(openJobHelper, "setFileHandleId",
@@ -141,7 +134,7 @@ void KioFuseApp::storeOpenHandle(KIO::FileJob* fileJob, OpenJobHelper* openJobHe
 // from the client thread.
 /*void KioFuseApp::lockJob(const uint64_t& fileHandleId)
 {
-    kDebug()<<"Locking fileHandleId"<<fileHandleId<<endl;
+    qDebug()<<"Locking fileHandleId"<<fileHandleId<<endl;
     FileJobData* fileJobData = fhIdtoFileJobData.value(fileHandleId);
     if (fileJobData){
         fileJobData->jobMutex.lock();
@@ -151,7 +144,7 @@ void KioFuseApp::storeOpenHandle(KIO::FileJob* fileJob, OpenJobHelper* openJobHe
 // Opposite of lockJob
 void KioFuseApp::unLockJob(const uint64_t& fileHandleId)
 {
-    kDebug()<<"Unlocking fileHandleId"<<fileHandleId<<endl;
+    qDebug()<<"Unlocking fileHandleId"<<fileHandleId<<endl;
     FileJobData* fileJobData = fhIdtoFileJobData.value(fileHandleId);
     if (fileJobData){
         fileJobData->jobMutex.unlock();
@@ -159,7 +152,7 @@ void KioFuseApp::unLockJob(const uint64_t& fileHandleId)
 }*/
 
 // Return an opened job and reset its timer.
-KIO::FileJob* KioFuseApp::checkOutJob(/*const KUrl& url,*/
+KIO::FileJob* KioFuseApp::checkOutJob(/*const QUrl& url,*/
                                       const uint64_t& fileHandleId)
 {
     //QMutexLocker cacheLocker(&m_cacheMutex);
@@ -171,21 +164,21 @@ KIO::FileJob* KioFuseApp::checkOutJob(/*const KUrl& url,*/
 
         //FIXME Fuse renames temporary files on the server. This is a FUSE bug.
         /*// The urls of the file being accessed and the opened file must match
-        VERIFY(url.path(KUrl::RemoveTrailingSlash) == 
-                fileJobData->fileJob->url().path(KUrl::RemoveTrailingSlash));*/
+        VERIFY(url.path(QUrl::RemoveTrailingSlash) == 
+                fileJobData->fileJob->url().path(QUrl::RemoveTrailingSlash));*/
 
 /*        if (fileJobData->qTime.elapsed() > MAX_TIME_OPENED){
-            kDebug()<<"Found expired fileHandleId"<<fileHandleId<<endl;
+            qDebug()<<"Found expired fileHandleId"<<fileHandleId<<endl;
             removeJob(fileHandleId, fileJobData);
             fileJobData = NULL;
 
             return NULL;
         }*/
 
-        kDebug()<<"fileHandleId"<<fileHandleId<<"fileJobData"<<fileJobData<<"fileJobData->fileJob"<<fileJobData->fileJob<<endl;
+        qDebug()<<"fileHandleId"<<fileHandleId<<"fileJobData"<<fileJobData<<"fileJobData->fileJob"<<fileJobData->fileJob<<endl;
         //cacheLocker.unlock();
         /*while (fileJobData->inUse){
-            kDebug()<<"fileJobData is in use, wasting some time."<<endl;
+            qDebug()<<"fileJobData is in use, wasting some time."<<endl;
         }
         fileJobData->inUse = true;*/
         //fileJobData->jobMutex.lock();
@@ -196,19 +189,19 @@ KIO::FileJob* KioFuseApp::checkOutJob(/*const KUrl& url,*/
         return fileJobData->fileJob;
     } else {
         // Didn't find the job
-        kDebug()<<"WARNING: Didn't find fileHandleId"<<fileHandleId<<endl;
+        qDebug()<<"WARNING: Didn't find fileHandleId"<<fileHandleId<<endl;
         return NULL;
     }
 }
 
 // Allow other threads to use the FileJob specified by this fileHandleId
-/*void KioFuseApp::checkInJob(const KUrl& url, const uint64_t& fileHandleId)
+/*void KioFuseApp::checkInJob(const QUrl& url, const uint64_t& fileHandleId)
 {
     //QMutexLocker locker(&m_cacheMutex);
 
     // The fileJob *must* be there if we're checking it back in
     if(!fhIdtoFileJobData.contains(fileHandleId)){
-        kDebug()<<"WARNING: File expired: url"<<url<<endl;
+        qDebug()<<"WARNING: File expired: url"<<url<<endl;
         return;
     }
     VERIFY(fhIdtoFileJobData.count(fileHandleId) == 1);
@@ -227,11 +220,11 @@ void KioFuseApp::removeJob(const uint64_t& fileHandleId,
     //QMutexLocker locker(&m_cacheMutex);
     //VERIFY(fileJobData->fileJob->thread() == this->thread());
 
-    kDebug()<<"fhIdtoFileJobData.size()"<<fhIdtoFileJobData.size()<<endl;
+    qDebug()<<"fhIdtoFileJobData.size()"<<fhIdtoFileJobData.size()<<endl;
     int removed = fhIdtoFileJobData.remove(fileHandleId);
     VERIFY(removed == 1);
     /*if (removed != 1){
-        kDebug()<<"WARNING: File expired: fileHandleId"<<fileHandleId<<endl;
+        qDebug()<<"WARNING: File expired: fileHandleId"<<fileHandleId<<endl;
         fileJobData = NULL;  // Don't delete twice
         return;
     }*/
@@ -242,15 +235,15 @@ void KioFuseApp::removeJob(const uint64_t& fileHandleId,
 }
 
 /*********** ListJob ***********/
-void KioFuseApp::listJobMainThread(const KUrl& url, ListJobHelper* listJobHelper)
+void KioFuseApp::listJobMainThread(const QUrl& url, ListJobHelper* listJobHelper)
 {
-    kDebug()<<"this->thread()"<<this->thread()<<endl;
+    qDebug()<<"this->thread()"<<this->thread()<<endl;
 
     KIO::ListJob* listJob = KIO::listDir(url, KIO::HideProgressInfo, true);
     VERIFY(listJob->thread() == this->thread());
 
-    kDebug()<<"listJob"<<listJob<<endl;
-    kDebug()<<"listJob->thread()"<<listJob->thread()<<endl;
+    qDebug()<<"listJob"<<listJob<<endl;
+    qDebug()<<"listJob->thread()"<<listJob->thread()<<endl;
 
     // Correlate listJob with the ListJobHelper that needs it
     VERIFY(m_jobToJobHelper.count(qobject_cast<KJob*>(listJob)) == 0);
@@ -271,8 +264,8 @@ void KioFuseApp::listJobMainThread(const KUrl& url, ListJobHelper* listJobHelper
 
 void KioFuseApp::slotResult(KJob* job)
 {
-    kDebug()<<"this->thread()"<<this->thread()<<endl;
-    kDebug()<<"job"<<job<<endl;
+    qDebug()<<"this->thread()"<<this->thread()<<endl;
+    qDebug()<<"job"<<job<<endl;
     int error = job->error();
 
     BaseJobHelper* jobHelper = m_jobToJobHelper.value(job);
@@ -293,13 +286,13 @@ void KioFuseApp::slotResult(KJob* job)
 }
 
 /*********** StatJob ***********/
-void KioFuseApp::statJobMainThread(const KUrl& url,
+void KioFuseApp::statJobMainThread(const QUrl& url,
                                    StatJobHelper* statJobHelper)
 {
     /*KIO::StatJob* statJob = KIO::stat(url, KIO::StatJob::SourceSide,
                                       2, KIO::HideProgressInfo);*/
     KIO::StatJob* statJob = KIO::stat(url, KIO::HideProgressInfo);
-    kDebug()<<"url"<<url<<"statJobHelper"<<statJobHelper<<"statJob"<<statJob<<endl;
+    qDebug()<<"url"<<url<<"statJobHelper"<<statJobHelper<<"statJob"<<statJob<<endl;
     VERIFY(statJob->thread() == this->thread());
 
     // Correlate listJob with the ListJobHelper that needs it
@@ -315,8 +308,8 @@ void KioFuseApp::statJobMainThread(const KUrl& url,
 void KioFuseApp::slotStatJobResult(KJob* job)
 {
     int error = job->error();
-    kDebug()<<"error"<<error<<endl;
-    if (error != 0) kDebug()<<job->errorString()<<endl;
+    qDebug()<<"error"<<error<<endl;
+    if (error != 0) qDebug()<<job->errorString()<<endl;
 
     BaseJobHelper* jobHelper = m_jobToJobHelper.value(job);
     StatJobHelper* statJobHelper = qobject_cast<StatJobHelper*>(jobHelper);
@@ -324,7 +317,7 @@ void KioFuseApp::slotStatJobResult(KJob* job)
     if (job->error() == 0){
         KIO::StatJob* statJob = qobject_cast<KIO::StatJob*>(job);
         KIO::UDSEntry entry = statJob->statResult();
-        kDebug()<<"statJobHelper"<<statJobHelper<<"statJob"<<statJob<<endl;
+        qDebug()<<"statJobHelper"<<statJobHelper<<"statJob"<<statJob<<endl;
 
         // Needed to be able to use Qt::QueuedConnection
         //qRegisterMetaType<KIO::UDSEntry>("KIO::UDSEntry");
@@ -340,7 +333,7 @@ void KioFuseApp::slotStatJobResult(KJob* job)
 
     // Remove job and jobHelper from map
     int numJobsRemoved = m_jobToJobHelper.remove(job);
-    VERIFY(numJobsRemoved == 1);
+    //VERIFY(numJobsRemoved == 1);
 
     VERIFY(job);
     job->kill();
@@ -354,7 +347,7 @@ void KioFuseApp::slotStatJobResult(KJob* job)
 }
 
 /*********** OpenJob ***********/
-void KioFuseApp::openJobMainThread(const KUrl& url, const QIODevice::OpenMode& qtMode, OpenJobHelper* openJobHelper)
+void KioFuseApp::openJobMainThread(const QUrl& url, const QIODevice::OpenMode& qtMode, OpenJobHelper* openJobHelper)
 {
     // Will be cached and close()-ed upon POSIX release()
     KIO::FileJob* fileJob = KIO::open(url, qtMode);
@@ -384,7 +377,7 @@ void KioFuseApp::openJobMainThread(const KUrl& url, const QIODevice::OpenMode& q
 void KioFuseApp::fileJobOpened(KIO::Job* job)
 {
     KIO::FileJob* fileJob = qobject_cast<KIO::FileJob*>(job);
-    kDebug()<<"fileJob->thread()"<<fileJob->thread()<<"this->thread()"<<this->thread()<<endl;
+    qDebug()<<"fileJob->thread()"<<fileJob->thread()<<"this->thread()"<<this->thread()<<endl;
 
     // Prevent fileJob calling jobErrorReadWrite() after the file is already opened
     disconnect(fileJob, 0, this, SLOT(jobErrorReadWrite(KJob*)));
@@ -397,7 +390,7 @@ void KioFuseApp::fileJobOpened(KIO::Job* job)
         // Store fh in cache and in the openJobHelper
         kioFuseApp->storeOpenHandle(fileJob, openJobHelper);
     } else
-        kDebug()<<job->errorString();
+        qDebug()<<job->errorString();
 
     // Remove job and jobHelper from map
     int numJobsRemoved = m_jobToJobHelper.remove(qobject_cast<KJob*>(job));
@@ -421,7 +414,7 @@ void KioFuseApp::fileJobOpened(KIO::Job* job)
     // If there's no error, ignore and don't call slotResult.
     // fileJobOpened will handle it
     if (job->error()){
-        kDebug()<<"Error opening fileJob. fileJob"<<fileJob<<"job->error()"<<job->error()<<endl;
+        qDebug()<<"Error opening fileJob. fileJob"<<fileJob<<"job->error()"<<job->error()<<endl;
         VERIFY(QMetaObject::invokeMethod(this, "slotResult",
                  Q_ARG(KJob*, job)));
     }
@@ -443,7 +436,7 @@ void KioFuseApp::jobErrorReadWrite(KJob* job)
     // If there's no error, ignore and don't call slotResult.
     // fileJobOpened will handle it
     if (error){
-        kDebug()<<"Error reading/writing to fileJob. error"<<error<<endl<<job->errorString();
+        qDebug()<<"Error reading/writing to fileJob. error"<<error<<endl<<job->errorString();
 
         BaseJobHelper* jobHelper = m_jobToJobHelper.value(job);
 
@@ -462,7 +455,7 @@ void KioFuseApp::slotMimetype(KIO::Job* job, const QString& type)
     KIO::FileJob* fileJob = qobject_cast<KIO::FileJob*>(job);
     disconnect(fileJob, 0, this, SLOT(slotMimetype(KIO::Job*, const QString&)));
 
-    kDebug()<<"type"<<type<<endl;
+    qDebug()<<"type"<<type<<endl;
 }
 
 /*********** LockHelper ***********/
@@ -497,7 +490,7 @@ void KioFuseApp::seekReadMainThread(const uint64_t& fileHandleId, const off_t& o
 
     KIO::FileJob* fileJob = checkOutJob(/*readJobHelper->url(),*/ fileHandleId);
     if (!fileJob){
-        kDebug()<<"fileJob not found. fileHandleId"<<fileHandleId<<endl;
+        qDebug()<<"fileJob not found. fileHandleId"<<fileHandleId<<endl;
         VERIFY(QMetaObject::invokeMethod(readJobHelper, "jobDone",
                                            Q_ARG(int, KIO::ERR_COULD_NOT_READ)));
         /*connect(this, SIGNAL(sendJobDone(const int&)),
@@ -507,9 +500,9 @@ void KioFuseApp::seekReadMainThread(const uint64_t& fileHandleId, const off_t& o
     }
 
     VERIFY(fileJob->thread() == this->thread());
-    kDebug()<<"fileJob"<<fileJob<<"readJobHelper"<<readJobHelper<<endl;
+    qDebug()<<"fileJob"<<fileJob<<"readJobHelper"<<readJobHelper<<endl;
 
-    kDebug()<<"m_jobToJobHelper.count(qobject_cast<KJob*>(fileJob))"<<m_jobToJobHelper.count(qobject_cast<KJob*>(fileJob))<<endl;
+    qDebug()<<"m_jobToJobHelper.count(qobject_cast<KJob*>(fileJob))"<<m_jobToJobHelper.count(qobject_cast<KJob*>(fileJob))<<endl;
     VERIFY(m_jobToJobHelper.count(qobject_cast<KJob*>(fileJob)) == 0);
     m_jobToJobHelper.insertMulti(qobject_cast<KJob*>(fileJob),
                                  qobject_cast<BaseJobHelper*>(readJobHelper));
@@ -537,13 +530,13 @@ void KioFuseApp::slotReadPosition(KIO::Job* job, KIO::filesize_t pos)
     // jobErrorReadWrite() after we've received the position.
     disconnect(fileJob, 0, this, 0);
 
-    kDebug()<<"job"<<job<<"job->thread()"<<job->thread()<<"pos"<<pos<<endl;
+    qDebug()<<"job"<<job<<"job->thread()"<<job->thread()<<"pos"<<pos<<endl;
 
     VERIFY(m_jobToJobHelper.contains(qobject_cast<KJob*>(job)));
     BaseJobHelper* jobHelper = m_jobToJobHelper.value(qobject_cast<KJob*>(job));
     ReadJobHelper* readJobHelper = qobject_cast<ReadJobHelper*>(jobHelper);
 
-    kDebug()<<"readJobHelper"<<readJobHelper<<endl;
+    qDebug()<<"readJobHelper"<<readJobHelper<<endl;
 
     // Remove job and jobHelper from map
     int numJobsRemoved = m_jobToJobHelper.remove(qobject_cast<KJob*>(job));
@@ -564,8 +557,8 @@ void KioFuseApp::slotReadPosition(KIO::Job* job, KIO::filesize_t pos)
 
 void KioFuseApp::readMainThread(KIO::FileJob* fileJob, const size_t& size, ReadJobHelper* readJobHelper)
 {
-    kDebug()<<"size"<<size<<endl;
-    //kDebug()<<"readJobHelper"<<readJobHelper<<endl;
+    qDebug()<<"size"<<size<<endl;
+    //qDebug()<<"readJobHelper"<<readJobHelper<<endl;
 
     //FIXME trying out
     //Not needed because of QMetaObject::invokeMethod
@@ -592,7 +585,7 @@ void KioFuseApp::readMainThread(KIO::FileJob* fileJob, const size_t& size, ReadJ
 
 void KioFuseApp::slotData(KIO::Job* job, const QByteArray& data)
 {
-    kDebug()<<"data"<<data<<"job"<<job<<endl;
+    qDebug()<<"data"<<data<<"job"<<job<<endl;
 
     KIO::FileJob* fileJob = qobject_cast<KIO::FileJob*>(job);
 
@@ -612,7 +605,7 @@ void KioFuseApp::slotData(KIO::Job* job, const QByteArray& data)
     int numJobsRemoved = m_jobToJobHelper.remove(qobject_cast<KJob*>(job));
     /*if (numJobsRemoved != 1)
     {
-    kDebug()<<"numJobsRemoved"<<numJobsRemoved<<"readJobHelper->fileHandleId()"<<readJobHelper->fileHandleId()<<endl;
+    qDebug()<<"numJobsRemoved"<<numJobsRemoved<<"readJobHelper->fileHandleId()"<<readJobHelper->fileHandleId()<<endl;
 }*/
     VERIFY(numJobsRemoved == 1);
 
@@ -630,7 +623,7 @@ void KioFuseApp::seekWriteMainThread(const uint64_t& fileHandleId, const off_t& 
 {
     KIO::FileJob* fileJob = checkOutJob(/*writeJobHelper->url(),*/ fileHandleId);
     if (!fileJob){
-        kDebug()<<"fileJob not found. fileHandleId"<<fileHandleId<<endl;
+        qDebug()<<"fileJob not found. fileHandleId"<<fileHandleId<<endl;
         VERIFY(QMetaObject::invokeMethod(writeJobHelper, "jobDone",
                                            Q_ARG(int, KIO::ERR_COULD_NOT_READ)));
         /*connect(this, SIGNAL(sendJobDone(const int&)),
@@ -640,7 +633,7 @@ void KioFuseApp::seekWriteMainThread(const uint64_t& fileHandleId, const off_t& 
     }
 
     VERIFY(fileJob->thread() == this->thread());
-    kDebug()<<"fileJob"<<fileJob<<"fileJob->thread()"<<fileJob->thread()<<endl;
+    qDebug()<<"fileJob"<<fileJob<<"fileJob->thread()"<<fileJob->thread()<<endl;
 
     VERIFY(m_jobToJobHelper.count(qobject_cast<KJob*>(fileJob)) == 0);
     m_jobToJobHelper.insertMulti(qobject_cast<KJob*>(fileJob),
@@ -670,7 +663,7 @@ void KioFuseApp::slotWritePosition(KIO::Job* job, KIO::filesize_t pos)
     disconnect(fileJob, 0, this, 0);
     //fileJob->disconnect();
 
-    kDebug()<<"job"<<job<<"job->thread()"<<job->thread()<<endl;
+    qDebug()<<"job"<<job<<"job->thread()"<<job->thread()<<endl;
 
     VERIFY(m_jobToJobHelper.contains(qobject_cast<KJob*>(job)));
     BaseJobHelper* jobHelper = m_jobToJobHelper.value(qobject_cast<KJob*>(job));
@@ -695,7 +688,7 @@ void KioFuseApp::slotWritePosition(KIO::Job* job, KIO::filesize_t pos)
 
 void KioFuseApp::writeMainThread(KIO::FileJob* fileJob, const QByteArray& data, WriteJobHelper* writeJobHelper)
 {
-    kDebug()<<"writeJobHelper"<<writeJobHelper<<endl;
+    qDebug()<<"writeJobHelper"<<writeJobHelper<<endl;
 
     VERIFY(fileJob->thread() == this->thread());
 
@@ -719,7 +712,7 @@ void KioFuseApp::writeMainThread(KIO::FileJob* fileJob, const QByteArray& data, 
 
 void KioFuseApp::slotWritten(KIO::Job* job, const KIO::filesize_t& written)
 {
-    kDebug()<<"written"<<written<<endl;
+    qDebug()<<"written"<<written<<endl;
 
     KIO::FileJob* fileJob = qobject_cast<KIO::FileJob*>(job);
 
@@ -752,7 +745,7 @@ void KioFuseApp::slotWritten(KIO::Job* job, const KIO::filesize_t& written)
 }
 
 /*********** MkDir ***********/
-void KioFuseApp::mkDirMainThread(const KUrl& url, const mode_t& mode,
+void KioFuseApp::mkDirMainThread(const QUrl& url, const mode_t& mode,
                                  MkDirHelper* mkDirHelper)
 {
     KIO::SimpleJob* simpleJob = KIO::mkdir(url, mode);
@@ -762,16 +755,16 @@ void KioFuseApp::mkDirMainThread(const KUrl& url, const mode_t& mode,
     VERIFY(m_jobToJobHelper.count(qobject_cast<KJob*>(simpleJob)) == 0);
     m_jobToJobHelper.insertMulti(qobject_cast<KJob*>(simpleJob),
                             qobject_cast<BaseJobHelper*>(mkDirHelper));
-    kDebug()<<"mode"<<mode<<url<<url<<endl;
+    qDebug()<<"mode"<<mode<<url<<url<<endl;
     connect(simpleJob, SIGNAL(result(KJob*)),
             this, SLOT(slotResult(KJob*)));
 }
 
 /*********** MkNod ***********/
-void KioFuseApp::mkNodMainThread(const KUrl& url, const mode_t& mode,
+void KioFuseApp::mkNodMainThread(const QUrl& url, const mode_t& mode,
                                  MkNodHelper* mkNodHelper)
 {
-    KTemporaryFile* temp = new KTemporaryFile();
+    QTemporaryFile* temp = new QTemporaryFile();
     temp->setAutoRemove(false);  // Must remove manually in slotMkNodResult()
                                  // if move fails
     temp->open();
@@ -789,7 +782,7 @@ void KioFuseApp::mkNodMainThread(const KUrl& url, const mode_t& mode,
     VERIFY(m_jobToJobHelper.count(qobject_cast<KJob*>(fileCopyJob)) == 0);
     m_jobToJobHelper.insertMulti(qobject_cast<KJob*>(fileCopyJob),
                             qobject_cast<BaseJobHelper*>(mkNodHelper));
-    kDebug()<<"mode"<<mode<<"temp.fileName()"<<temp->fileName()<<url<<url<<endl;
+    qDebug()<<"mode"<<mode<<"temp.fileName()"<<temp->fileName()<<url<<url<<endl;
     connect(fileCopyJob, SIGNAL(result(KJob*)),
             this, SLOT(slotMkNodResult(KJob*)));
 }
@@ -799,7 +792,7 @@ void KioFuseApp::slotMkNodResult(KJob* job)
     int error = job->error();
 
     // Delete the temp file if there was an error
-    KTemporaryFile* temp = m_jobToTempFile.value(job);
+    QTemporaryFile* temp = m_jobToTempFile.value(job);
     VERIFY(temp);
     if (error){
         temp->setAutoRemove(true);
@@ -828,10 +821,10 @@ void KioFuseApp::slotMkNodResult(KJob* job)
 }
 
 /*********** SymLink ***********/
-void KioFuseApp::symLinkMainThread(const KUrl& source, const KUrl& dest,
+void KioFuseApp::symLinkMainThread(const QUrl& source, const QUrl& dest,
                                    SymLinkHelper* symLinkHelper)
 {
-    kDebug()<<"source.path()"<<source.path()<<"dest"<<dest<<endl;
+    qDebug()<<"source.path()"<<source.path()<<"dest"<<dest<<endl;
     KIO::SimpleJob* simpleJob = KIO::symlink(source.path(), dest,
                                 KIO::HideProgressInfo);
     VERIFY(simpleJob->thread() == this->thread());
@@ -846,7 +839,7 @@ void KioFuseApp::symLinkMainThread(const KUrl& source, const KUrl& dest,
 }
 
 /*********** ReName ***********/
-void KioFuseApp::reNameMainThread(const KUrl& source, const KUrl& dest,
+void KioFuseApp::reNameMainThread(const QUrl& source, const QUrl& dest,
                                  ReNameHelper* reNameHelper)
 {
     KIO::FileCopyJob* fileCopyJob = KIO::file_move(source, dest, -1,
@@ -863,7 +856,7 @@ void KioFuseApp::reNameMainThread(const KUrl& source, const KUrl& dest,
 }
 
 /*********** ChMod ***********/
-void KioFuseApp::chModMainThread(const KUrl& url, const mode_t& mode,
+void KioFuseApp::chModMainThread(const QUrl& url, const mode_t& mode,
                                  ChModHelper* chModHelper)
 {
     KIO::SimpleJob* simpleJob = KIO::chmod(url, mode);
@@ -873,13 +866,13 @@ void KioFuseApp::chModMainThread(const KUrl& url, const mode_t& mode,
     VERIFY(m_jobToJobHelper.count(qobject_cast<KJob*>(simpleJob)) == 0);
     m_jobToJobHelper.insertMulti(qobject_cast<KJob*>(simpleJob),
                             qobject_cast<BaseJobHelper*>(chModHelper));
-    kDebug()<<"mode"<<mode<<endl;
+    qDebug()<<"mode"<<mode<<endl;
     connect(simpleJob, SIGNAL(result(KJob*)),
             this, SLOT(slotResult(KJob*)));
 }
 
 /*********** UnLink ***********/
-void KioFuseApp::unLinkMainThread(const KUrl& url, UnLinkHelper* unLinkHelper)
+void KioFuseApp::unLinkMainThread(const QUrl& url, UnLinkHelper* unLinkHelper)
 {
     KIO::DeleteJob* deleteJob = KIO::del(url, KIO::HideProgressInfo);
     VERIFY(deleteJob->thread() == this->thread());
@@ -888,13 +881,13 @@ void KioFuseApp::unLinkMainThread(const KUrl& url, UnLinkHelper* unLinkHelper)
     VERIFY(m_jobToJobHelper.count(qobject_cast<KJob*>(deleteJob)) == 0);
     m_jobToJobHelper.insertMulti(qobject_cast<KJob*>(deleteJob),
                             qobject_cast<BaseJobHelper*>(unLinkHelper));
-    kDebug()<<"url"<<url<<endl;
+    qDebug()<<"url"<<url<<endl;
     connect(deleteJob, SIGNAL(result(KJob*)),
             this, SLOT(slotResult(KJob*)));
 }
 
 /*********** Release ***********/
-void KioFuseApp::releaseJobMainThread(/*const KUrl& url,*/
+void KioFuseApp::releaseJobMainThread(/*const QUrl& url,*/
                                       const uint64_t& fileHandleId,
                                       const bool& jobIsAnnulled,
                                       ReleaseJobHelper* releaseJobHelper)
@@ -904,13 +897,13 @@ void KioFuseApp::releaseJobMainThread(/*const KUrl& url,*/
 
     if (fhIdtoFileJobData.contains(fileHandleId)){
         FileJobData* fileJobData = fhIdtoFileJobData.value(fileHandleId);
-        //kDebug()<<"fileJobData->fileJob->thread()"<<fileJobData->fileJob->thread()<<"this->thread()"<<this->thread()<<endl;
+        //qDebug()<<"fileJobData->fileJob->thread()"<<fileJobData->fileJob->thread()<<"this->thread()"<<this->thread()<<endl;
         //VERIFY(fileJobData->fileJob->thread() == this->thread());
 
         //FIXME Fuse renames temporary files on the server. This is a FUSE bug.
         /*// The urls of the file being accessed and the opened file must match
-        VERIFY(url.path(KUrl::RemoveTrailingSlash) == 
-                fileJobData->fileJob->url().path(KUrl::RemoveTrailingSlash));*/
+        VERIFY(url.path(QUrl::RemoveTrailingSlash) == 
+                fileJobData->fileJob->url().path(QUrl::RemoveTrailingSlash));*/
 
         removeJob(fileHandleId, fileJobData, jobIsAnnulled);
         fileJobData = NULL;
@@ -928,7 +921,7 @@ void KioFuseApp::releaseJobMainThread(/*const KUrl& url,*/
 }
 
 /*********** ChTime ***********/
-void KioFuseApp::chTimeMainThread(const KUrl& url, const QDateTime& dt,
+void KioFuseApp::chTimeMainThread(const QUrl& url, const QDateTime& dt,
                                   ChTimeHelper* chTimeHelper)
 {
     KIO::SimpleJob* simpleJob = KIO::setModificationTime(url, dt);
@@ -1141,10 +1134,9 @@ bool KioFuseApp::isAnnulled(const uint64_t& fh)
 void KioFuseApp::quitGracefully(const char* expression, const char* file,
                     const int& line, const char* function)
 {
-    kWarning()<<endl<<"A fatal error has caused KioFuse to crash. Please send"\
+    qDebug()<<endl<<"A fatal error has caused KioFuse to crash. Please send"\
     <<"the following information to http://bugzilla.kde.org:"<<endl\
     <<"File: "<<file<<endl<<"Function: "<<function<<endl\
     <<"Line: "<<line<<endl<<"Expression: "<<expression;
-    raise(SIGQUIT);
-    //sleep(10);
+    //    raise(SIGQUIT);
 }

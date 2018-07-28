@@ -22,22 +22,22 @@
 
 #include <QEventLoop>
 
-#include <kurl.h>
+#include <QUrl>
 
 class BaseJobHelper : public QObject
 {
     Q_OBJECT
 
 public:
-    BaseJobHelper(QEventLoop* eventLoop, const KUrl& url);
+    BaseJobHelper(QEventLoop* eventLoop, const QUrl& url);
     ~BaseJobHelper();
 
     int error() const {return m_error;}  // Error code returned by the job
-    KUrl url() const {return m_url;}
+    QUrl url() const {return m_url;}
 
 protected:
     int m_error;  // Error code returned by the job
-    KUrl m_url;  // The remote url
+    QUrl m_url;  // The remote url
     QEventLoop* m_eventLoop;  // The event loop that will return execution to the FUSE op once the job finished
 
 protected slots:
