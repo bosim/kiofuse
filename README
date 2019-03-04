@@ -8,8 +8,11 @@ It works by acting as a bridge between the KIO filesystem design and FUSE, a pro
 Installation
 -------------
 
-1) Install kdelibs (version 4.x) including developement packages (if shipped separately) provided by your distribution or compile it according to the intructions at http://techbase.kde.org/Getting_Started/Build/KDE4.
-2) git clone https://github.com/thfi/kiofuse.git
+#1) Install kdelibs (version 4.x) including developement packages (if shipped separately) provided by your distribution or compile it according to the intructions at http://techbase.kde.org/Getting_Started/Build/KDE4.
+^This instruction is from the old KDE4 version, which can be seen here https://github.com/thfi/kiofuse. Newer instructions below.
+
+1) On an Ubuntu-based system, install the following packages: build-essential extra-cmake-modules libfuse-dev libkf5kio-dev
+2) git clone https://github.com/bosim/kiofuse.git
 3) cd kiofuse
 4) cmake . # note the dot!
 5) make
